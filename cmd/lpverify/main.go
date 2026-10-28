@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"strconv"
 
 	"github.com/ClusterCockpit/cc-line-protocol/v2/lineprotocol"
 )
@@ -47,10 +48,16 @@ nextLine:
 				break
 			}
 		}
-		// TODO precision flag so we can check time bounds.
-		if _, err := dec.TimeBytes(); err != nil {
+		// Precision-dependent time bounds remain separate from integer syntax.
+		timestamp, err := dec.TimeBytes()
+		if err != nil {
 			logErr(err)
 			continue nextLine
+		}
+		if timestamp != nil {
+			if _, err := strconv.ParseInt(string(timestamp), 10, 64); err != nil {
+				logErr(fmt.Errorf("invalid timestamp: %w", err))
+			}
 		}
 	}
 	if err := dec.Err(); err != nil {
