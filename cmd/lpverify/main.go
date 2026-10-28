@@ -53,5 +53,8 @@ nextLine:
 			continue nextLine
 		}
 	}
+	if err := dec.Err(); err != nil {
+		logErr(err)
+	}
 	return ok
 }
