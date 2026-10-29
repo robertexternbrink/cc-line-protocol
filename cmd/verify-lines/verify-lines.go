@@ -4,6 +4,7 @@ import "C"
 import (
 	"fmt"
 	"os"
+	"strconv"
 
 	"github.com/ClusterCockpit/cc-line-protocol/v2/lineprotocol"
 )
@@ -20,7 +21,11 @@ func main() {}
 //
 //export verifyLines
 func verifyLines(lines *C.char) C.int {
-	dec := lineprotocol.NewDecoderWithBytes([]byte(C.GoString(lines)))
+	return C.int(verifyLineBytes([]byte(C.GoString(lines))))
+}
+
+func verifyLineBytes(lines []byte) int {
+	dec := lineprotocol.NewDecoderWithBytes(lines)
 	var failure bool
 	logErr := func(err error) {
 		fmt.Fprintf(os.Stderr, "%v\n", err)
@@ -53,9 +58,15 @@ nextLine:
 				break
 			}
 		}
-		if _, err := dec.TimeBytes(); err != nil {
+		timestamp, err := dec.TimeBytes()
+		if err != nil {
 			logErr(err)
 			continue nextLine
+		}
+		if timestamp != nil {
+			if _, err := strconv.ParseInt(string(timestamp), 10, 64); err != nil {
+				logErr(fmt.Errorf("invalid timestamp: %w", err))
+			}
 		}
 	}
 	if failure {
