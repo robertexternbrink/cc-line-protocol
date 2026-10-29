@@ -115,10 +115,10 @@ func NewDecoderWithBytes(buf []byte) *Decoder {
 // NewDecoder returns a decoder that reads from the given reader.
 func NewDecoder(r io.Reader) *Decoder {
 	return &Decoder{
-		rd:       r,
-		ownsBuf:  true,
-		section:  endSection,
-		line:     1,
+		rd:      r,
+		ownsBuf: true,
+		section: endSection,
+		line:    1,
 	}
 }
 
@@ -151,7 +151,6 @@ func (d *Decoder) SetMaxBufferSize(n int) {
 //	for d.Next() {
 //		timestamp, err := d.TimeBytes()
 //	}
-//
 func (d *Decoder) Next() bool {
 	if _, err := d.advanceToSection(endSection); err != nil {
 		// There was a syntax error and the line might not be
@@ -163,6 +162,9 @@ func (d *Decoder) Next() bool {
 		// multiple errors per line), then we might need to loop here.
 		d.advanceToSection(endSection)
 	}
+	// Discard the completed entry before looking for more input. Its bytes
+	// must not count against the next entry's buffer limit.
+	d.reset()
 	d.skipEmptyLines()
 	d.section = measurementSection
 	return d.ensure(1)
@@ -890,6 +892,19 @@ func (d *Decoder) readMore() {
 		}
 		if d.maxBufSize > 0 && n1 > d.maxBufSize {
 			if used >= d.maxBufSize {
+				// A full buffer can still be the complete, valid final entry.
+				// Probe EOF without increasing the internal buffer capacity.
+				var probe [1]byte
+				count, err := d.rd.Read(probe[:])
+				if count == 0 {
+					if err != nil {
+						d.complete = true
+						if err != io.EOF {
+							d.err = err
+						}
+					}
+					return
+				}
 				d.complete = true
 				d.err = fmt.Errorf("line-protocol line exceeds maximum buffer size (%d bytes)", d.maxBufSize)
 				return
